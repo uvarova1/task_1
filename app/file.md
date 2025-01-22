@@ -3,6 +3,8 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
+deactivate
+
 2. файл .env в корне проекта
 DB_PORT=5432
 DB_NAME=main_db
@@ -45,6 +47,9 @@ sudo nano /etc/docker/daemon.json
   "dns": ["8.8.8.8", "8.8.4.4"]
 }
 
+Очистить ненужные ресурсы Docker
+docker system prune
+
 Проверка статуса контейнера docker.socket
 systemctl status docker.socket
 
@@ -67,9 +72,15 @@ sudo kill -9 <PID>
 
 sudo docker ps
 sudo docker stop d0fdfc34904d
+sudo systemctl stop apache2
+
+sudo lsof -i :5432
 
 5. app/model
 файл с именем модели (например, `book.py`)
+nullable=False: Значение не может быть пустым.
+
+
 
 6. app/schema
 папка book
@@ -188,6 +199,52 @@ middleware для подсчета запросов
 Создания собственного контейнера
 `docker run -d --name your_name -p your_port:5432 -e POSTGRES_PASSWORD=your_password -e POSTGRES_USER=your_user -e POSTGRES_DB=your_db  postgres
 `
+
+model
+from uuid import UUID, uuid4
+from datetime import datetime
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import String, Integer, Boolean, DateTime, JSON
+from typing import List, Optional
+from app.model.meta import Base
+
+
+class User(Base):
+    __tablename__ = 'User'
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)  # Уникальный идентификатор
+    username: Mapped[str] = mapped_column(String(50), nullable=False)  # Ограничение длины строки до 50
+    email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)  # Уникальная строка
+    age: Mapped[int] = mapped_column(Integer, nullable=True)  # Целое число
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)  # Булевое значение
+    signup_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)  # Дата и время
+    tags: Mapped[Optional[List[str]]] = mapped_column(JSON, default=[])  # JSON-колонка для хранения списка
+
+
+schema
+from pydantic import BaseModel, UUID4, EmailStr, HttpUrl, conint
+from typing import List, Optional
+from datetime import datetime
+
+
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr
+    age: conint(ge=18, le=100)  # Возраст от 18 до 100
+    is_active: bool = True
+    signup_date: datetime = datetime.utcnow()
+    tags: List[str] = []  # Список строк
+
+
+class UserRead(BaseModel):
+    id: UUID4
+    username: str
+    email: EmailStr
+    is_active: bool
+    tags: List[str]
+
+    class Config:
+        from_attributes = True
 
 
 http://localhost/docs
